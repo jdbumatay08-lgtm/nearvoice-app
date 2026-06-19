@@ -15,9 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.database.ktx.database
-import com.google.firebase.ktx.Firebase
 
 class MainActivity : ComponentActivity() {
 
@@ -39,9 +36,6 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
 
-        // Initialize Firebase Auth
-        Firebase.auth.signInAnonymously()
-
         setContent {
             MaterialTheme {
                 Surface(
@@ -57,32 +51,16 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun NearVoiceApp(hasMicPermission: Boolean) {
-    val db = Firebase.database.reference
-    val myUid = Firebase.auth.currentUser?.uid ?: "loading..."
-
-    var myPairCode by remember { mutableStateOf("") }
-    var partnerCode by remember { mutableStateOf("") }
-    var connectionStatus by remember { mutableStateOf("Generate a code to start.") }
+    var pairCode by remember { mutableStateOf("") }
+    var connectionStatus by remember { mutableStateOf("Enter a 6-digit code to connect.") }
     var isConnected by remember { mutableStateOf(false) }
 
-    fun generateCode() {
-        val code = (100000..999999).random().toString()
-        myPairCode = code
-        connectionStatus = "Code: $code\nAsk your partner to enter this."
-        db.child("invitations").child(code).setValue(myUid)
-    }
-
     fun connectToPartner() {
-        if (partnerCode.length == 6) {
-            connectionStatus = "Connecting to $partnerCode..."
-            db.child("invitations").child(partnerCode).get().addOnSuccessListener {
-                if (it.exists()) {
-                    isConnected = true
-                    connectionStatus = "Connected! Push to talk."
-                } else {
-                    connectionStatus = "Invalid code."
-                }
-            }
+        if (pairCode.length == 6) {
+            isConnected = true
+            connectionStatus = "Connected! Push to talk."
+        } else {
+            connectionStatus = "Code must be 6 digits."
         }
     }
 
@@ -102,22 +80,16 @@ fun NearVoiceApp(hasMicPermission: Boolean) {
             Text("NearVoice", style = MaterialTheme.typography.headlineLarge)
             Spacer(modifier = Modifier.height(24.dp))
             
-            Button(onClick = { generateCode() }) {
-                Text("Generate Pairing Code")
-            }
+            OutlinedTextField(
+                value = pairCode,
+                onValueChange = { if (it.length <= 6) pairCode = it },
+                label = { Text("Enter 6-Digit Code") }
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
             Text(connectionStatus)
             
             Spacer(modifier = Modifier.height(24.dp))
-            
-            OutlinedTextField(
-                value = partnerCode,
-                onValueChange = { if (it.length <= 6) partnerCode = it },
-                label = { Text("Enter Partner's Code") }
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
             
             Button(onClick = { connectToPartner() }) {
                 Text("Connect")
