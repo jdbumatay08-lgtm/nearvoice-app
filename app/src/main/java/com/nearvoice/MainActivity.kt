@@ -82,7 +82,11 @@ fun NearVoiceApp(hasMicPermission: Boolean) {
             
             OutlinedTextField(
                 value = pairCode,
-                onValueChange = { if (it.length <= 6) pairCode = it },
+                onValueChange = { text ->
+                    if (text.length <= 6) {
+                        pairCode = text
+                    }
+                },
                 label = { Text("Enter 6-Digit Code") }
             )
             
