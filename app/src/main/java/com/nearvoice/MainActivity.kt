@@ -2,7 +2,6 @@ package com.nearvoice
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,15 +16,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import java.io.File
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.database.ktx.database
+import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.tasks.await
 
 class MainActivity : ComponentActivity() {
 
-    private var recorder: MediaRecorder? = null
-    private var audioFile: File? = null
     private var hasMicPermission by mutableStateOf(false)
-
-    // Hihingi ng Microphone permission kapag binuksan ang app
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -35,7 +33,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Check kung may mic permission na
         hasMicPermission = ContextCompat.checkSelfPermission(
             this, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
@@ -44,64 +41,103 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
 
+        // Mag-login anonymously sa Firebase
+        Firebase.auth.signInAnonymously()
+
         setContent {
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    PTTScreen(
-                        hasMicPermission = hasMicPermission,
-                        onStartTalking = { startRecording() },
-                        onStopTalking = { stopRecording() }
-                    )
+                    NearVoiceApp(hasMicPermission)
                 }
             }
-        }
-    }
-
-    private fun startRecording() {
-        if (!hasMicPermission) return
-
-        try {
-            audioFile = File(externalCacheDir, "ptt_audio.3gp")
-            recorder = (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                MediaRecorder(this)
-            } else {
-                @Suppress("DEPRECATION")
-                MediaRecorder()
-            }).apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
-                setOutputFile(audioFile?.absolutePath)
-                prepare()
-                start()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun stopRecording() {
-        try {
-            recorder?.apply {
-                stop()
-                release()
-            }
-            recorder = null
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 }
 
 @Composable
-fun PTTScreen(
-    hasMicPermission: Boolean,
-    onStartTalking: () -> Unit,
-    onStopTalking: () -> Unit
-) {
+fun NearVoiceApp(hasMicPermission: Boolean) {
+    val db = Firebase.database.reference
+    val myUid = Firebase.auth.currentUser?.uid ?: "loading..."
+
+    var myPairCode by remember { mutableStateOf("") }
+    var partnerCode by remember { mutableStateOf("") }
+    var connectionStatus by remember { mutableStateOf("Generate a code to start.") }
+    var isConnected by remember { mutableStateOf(false) }
+
+    // Generate 6-digit code
+    fun generateCode() {
+        val code = (100000..999999).random().toString()
+        myPairCode = code
+        connectionStatus = "Code: $code\nAsk your partner to enter this."
+        
+        // Simulate Partner Connection (For testing: If partner enters this code, connect)
+        db.child("invitations").child(code).setValue(myUid)
+    }
+
+    // Connect to partner
+    fun connectToPartner() {
+        if (partnerCode.length == 6) {
+            connectionStatus = "Connecting to $partnerCode..."
+            db.child("invitations").child(partnerCode).get().addOnSuccessListener {
+                if (it.exists()) {
+                    isConnected = true
+                    connectionStatus = "Connected! Push to talk."
+                } else {
+                    connectionStatus = "Invalid code."
+                }
+            }
+        }
+    }
+
+    if (!hasMicPermission) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Please allow Microphone Permission.", color = MaterialTheme.colorScheme.error)
+        }
+        return
+    }
+
+    if (!isConnected) {
+        // PAIRING SCREEN
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("NearVoice", style = MaterialTheme.typography.headlineLarge)
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Button(onClick = { generateCode() }) {
+                Text("Generate Pairing Code")
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(connectionStatus)
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            OutlinedTextField(
+                value = partnerCode,
+                onValueChange = { if (it.length <= 6) partnerCode = it },
+                label = { Text("Enter Partner's Code") }
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Button(onClick = { connectToPartner() }) {
+                Text("Connect")
+            }
+        }
+    } else {
+        // PTT SCREEN (WebRTC Logic goes here for real-time audio)
+        PTTScreen(connectionStatus)
+    }
+}
+
+@Composable
+fun PTTScreen(status: String) {
     var isPressed by remember { mutableStateOf(false) }
 
     Box(
@@ -109,24 +145,21 @@ fun PTTScreen(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (!hasMicPermission) {
-                Text("Please allow Microphone Permission to use NearVoice.", color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
+            Text(status)
+            Spacer(modifier = Modifier.height(24.dp))
+            
             Button(
                 onClick = {},
-                enabled = hasMicPermission,
                 modifier = Modifier
                     .size(200.dp)
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
                                 isPressed = true
-                                onStartTalking() // Buksan ang mic
+                                // Start WebRTC Audio Stream
                                 tryAwaitRelease()
                                 isPressed = false
-                                onStopTalking() // Isara ang mic
+                                // Stop WebRTC Audio Stream
                             }
                         )
                     },
