@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application") version "8.5.2"
     id("org.jetbrains.kotlin.android") version "1.9.24"
+    id("com.google.gms.google-services") version "4.4.2"
 }
 
 android {
@@ -38,4 +39,8 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.09.02"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
+    
+    // Firebase Auth & Database (Kailangan para sa Pairing)
+    implementation("com.google.firebase:firebase-auth:23.0.0")
+    implementation("com.google.firebase:firebase-database:21.0.0")
 }
