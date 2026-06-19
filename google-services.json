@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "183371688394",
+    "project_id": "nearvoice-app",
+    "storage_bucket": "nearvoice-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:183371688394:android:be78731685c89830f5c733",
+        "android_client_info": {
+          "package_name": "com.nearvoice"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDqSwtX7AHe4glZkkdFd4SK6_QuTU_iopk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
